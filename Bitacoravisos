@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Bitácora de Avisos Maquinaria</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  
+  <!-- Firebase SDK JS v9 (Módulos Compatibility) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; margin: 0; padding: 0; font-family: 'Roboto', sans-serif; }
+    body { 
+      background-color: #f4f6f9; 
+      color: #333; 
+      padding-bottom: 40px; 
+      background-size: cover; 
+      background-position: center; 
+      background-attachment: fixed;
+      transition: background 0.3s ease;
+    }
+
+    .app-header {
+      position: sticky; top: 0; z-index: 100;
+      background: linear-gradient(135deg, #1b3a4b, #006494);
+      color: #fff; padding: 12px 16px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      border-bottom-left-radius: 16px; border-bottom-right-radius: 16px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .header-left { display: flex; align-items: center; gap: 10px; }
+    .header-left img { width: 42px; height: auto; }
+    .header-title h1 { font-size: 1.05rem; font-weight: 700; color: #fff; }
+    .header-title p { font-size: 0.7rem; opacity: 0.85; }
+
+    .aviso-badge {
+      background: #2a9d8f; color: #fff; padding: 4px 10px;
+      border-radius: 12px; font-size: 0.85rem; font-weight: 700;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .container { padding: 16px; max-width: 600px; margin: 0 auto; }
+
+    .card {
+      background: rgba(255,255,255,0.95); border-radius: 14px; padding: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08); backdrop-filter: blur(4px);
+      margin-bottom: 16px;
+    }
+
+    .card-title { font-size: 1rem; font-weight: 700; color: #1b3a4b; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; font-size: 0.8rem; font-weight: 600; color: #475569; margin-bottom: 4px; }
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px;
+      font-size: 0.9rem; outline: none; background: #fff;
+    }
+    .form-group textarea { min-height: 80px; resize: vertical; }
+    .form-group input[readonly] { background: #f1f5f9; color: #64748b; }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    .btn-main {
+      width: 100%; background: #006494; color: #fff; border: none; padding: 14px;
+      border-radius: 10px; font-size: 0.95rem; font-weight: 700; cursor: pointer;
+    }
+    .btn-main:active { background: #1b3a4b; }
+    .btn-secondary { background: #64748b; color: #fff; border: none; padding: 8px 12px; border-radius: 6px; font-size: 0.8rem; cursor: pointer; }
+    .btn-danger { background: #e63946; color: #fff; border: none; padding: 6px 10px; border-radius: 6px; font-size: 0.75rem; cursor: pointer; }
+
+    /* Modal / Popups */
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 1000;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal-box {
+      background: #fff; border-radius: 16px; padding: 20px; width: 90%; max-width: 400px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
+
+    /* Tabla Admin */
+    .table-container { overflow-x: auto; margin-top: 10px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    th, td { padding: 8px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+    th { background: #f8fafc; color: #475569; }
+
+    /* Toast Notification */
+    #toastContainer {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      z-index: 10000; display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+    }
+    .toast {
+      background: #1b3a4b; color: #fff; padding: 12px 20px; border-radius: 25px;
+      font-size: 0.85rem; font-weight: 500; box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+      opacity: 0; transform: translateY(20px); transition: all 0.3s ease; text-align: center;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.success { background: #2a9d8f; }
+    .toast.error { background: #e63946; }
+  </style>
+</head>
+<body>
+
+  <!-- ENCABEZADO PRINCIPAL -->
+  <div class="app-header">
+    <div class="header-left">
+      <img src="tractor.png" alt="Logo">
+      <div class="header-title">
+        <h1>Bitácora de Avisos Maquinaria</h1>
+        <p>Registro de Fallas y Operaciones</p>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span class="aviso-badge" id="lblNumeroAviso">Av-001</span>
+      <button class="btn-secondary" style="padding: 6px 10px;" onclick="abrirModalAdmin()">🔒 Admin</button>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- FORMULARIO INICIO -->
+    <div class="card">
+      <div class="card-title">📝 Generar Nuevo Aviso</div>
+      
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Fecha y Hora</label>
+          <input type="text" id="txtFecha" readonly>
+        </div>
+        <div class="form-group">
+          <label>Frente</label>
+          <select id="selFrente">
+            <option value="1">Frente 1</option>
+            <option value="2">Frente 2</option>
+            <option value="5">Frente 5</option>
+            <option value="7">Frente 7</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>ID Máquina</label>
+        <select id="selMaquina" onchange="alSeleccionarMaquina()">
+          <option value="">-- Seleccionar Máquina --</option>
+        </select>
+      </div>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Nombre Operador</label>
+          <input type="text" id="txtNombreOp" readonly placeholder="Auto-completado">
+        </div>
+        <div class="form-group">
+          <label>Código Operador</label>
+          <input type="text" id="txtCodigoOp" readonly placeholder="Auto-completado">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Departamento</label>
+        <select id="selDepartamento">
+          <option value="Taller">Taller</option>
+          <option value="Llantera">Llantera</option>
+          <option value="Cosecha">Cosecha</option>
+          <option value="Fastrack">Fastrack</option>
+          <option value="TA!1">TA!1</option>
+          <option value="Solinftec">Solinftec</option>
+        </select>
+      </div>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Ubicación</label>
+          <input type="text" id="txtUbicacion" placeholder="Escribir ubicación">
+        </div>
+        <div class="form-group">
+          <label>Código Finca</label>
+          <input type="text" id="txtCodigoFinca" placeholder="Escribir código">
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Teléfono</label>
+          <input type="tel" id="txtTelefono" placeholder="Escribir número">
+        </div>
+        <div class="form-group">
+          <label>Estado</label>
+          <select id="selEstado">
+            <option value="Laborando con la falla">Laborando con la falla</option>
+            <option value="Parqueado por la falla">Parqueado por la falla</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Aviso</label>
+        <input type="text" id="txtAvisoResumen" placeholder="Resumen corto del aviso">
+      </div>
+
+      <div class="form-group">
+        <label>Detalle de Aviso</label>
+        <textarea id="txtDetalleAviso" placeholder="Escriba aquí los detalles a reportar..."></textarea>
+      </div>
+
+      <button class="btn-main" onclick="guardarAviso()">💾 Guardar Aviso en Firebase</button>
+    </div>
+  </div>
+
+  <!-- MODAL AUTENTICACIÓN ADMIN -->
+  <div class="modal-overlay" id="modalAuth">
+    <div class="modal-box">
+      <h3 style="margin-bottom: 8px; color: #1b3a4b;">Acceso Administrador</h3>
+      <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 12px;">Ingrese su contraseña para continuar</p>
+
+      <div class="form-group">
+        <input type="password" id="txtPassAdmin" placeholder="Contraseña">
+      </div>
+
+      <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+        <input type="checkbox" id="chkKeepSession" style="width: auto;">
+        <label for="chkKeepSession" style="margin-bottom: 0; font-weight: normal;">Mantener sesión iniciada</label>
+      </div>
+
+      <div style="display: flex; gap: 8px; margin-top: 12px;">
+        <button class="btn-secondary" style="flex: 1;" onclick="cerrarModalAuth()">Cancelar</button>
+        <button class="btn-main" style="flex: 1; padding: 10px;" onclick="verificarPassword()">Ingresar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL PANEL DE ADMINISTRACIÓN -->
+  <div class="modal-overlay" id="modalAdmin">
+    <div class="modal-box" style="max-width: 600px; width: 95%; max-height: 90vh; overflow-y: auto;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h3>⚙️ Panel de Administración</h3>
+        <button class="btn-danger" onclick="cerrarSesionAdmin()">Cerrar Sesión</button>
+      </div>
+
+      <!-- SECCIÓN 1: MAQUINARIA Y OPERADORES -->
+      <div class="card" style="padding: 12px; margin-bottom: 12px;">
+        <div class="card-title" style="font-size: 0.9rem;">🚜 Gestión de Maquinaria y Operadores</div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>ID Máquina</label>
+            <input type="text" id="adminIdMaquina" placeholder="Ej: TR-01">
+          </div>
+          <div class="form-group">
+            <label>Nombre Operador</label>
+            <input type="text" id="adminNombreOp" placeholder="Nombre completo">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Código Operador</label>
+          <input type="text" id="adminCodigoOp" placeholder="Ej: OP-554">
+        </div>
+        <button class="btn-main" style="padding: 8px;" onclick="agregarMaquinaria()">Agregar / Actualizar Máquina</button>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr><th>ID</th><th>Operador</th><th>Código</th><th>Acción</th></tr>
+            </thead>
+            <tbody id="tbMaquinarias"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- SECCIÓN 2: CONSULTA DE AVISOS -->
+      <div class="card" style="padding: 12px; margin-bottom: 12px;">
+        <div class="card-title" style="font-size: 0.9rem;">🔍 Registro y Búsqueda de Avisos</div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Filtrar por Máquina</label>
+            <input type="text" id="busqMaquina" placeholder="Buscar ID..." onkeyup="filtrarAvisosAdmin()">
+          </div>
+          <div class="form-group">
+            <label>Filtrar por Fecha</label>
+            <input type="date" id="busqFecha" onchange="filtrarAvisosAdmin()">
+          </div>
+        </div>
+        <p style="font-size: 0.8rem; font-weight: bold; color: #006494; margin-bottom: 8px;" id="lblTotalAvisos">Total avisos: 0</p>
+        
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr><th>Aviso</th><th>Máquina</th><th>Operador</th><th>Fecha</th><th>Estado</th></tr>
+            </thead>
+            <tbody id="tbAvisos"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- SECCIÓN 3: CONFIGURACIÓN -->
+      <div class="card" style="padding: 12px;">
+        <div class="card-title" style="font-size: 0.9rem;">🔧 Configuración de Sistema</div>
+        
+        <div class="form-group">
+          <label>Cambiar Contraseña Admin</label>
+          <div style="display: flex; gap: 6px;">
+            <input type="password" id="txtNuevaPass" placeholder="Nueva contraseña">
+            <button class="btn-secondary" onclick="cambiarPasswordAdmin()">Guardar</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Imagen de Fondo</label>
+          <input type="file" id="fileBg" accept="image/*" style="margin-bottom: 6px;">
+          <div style="display: flex; gap: 6px;">
+            <button class="btn-secondary" onclick="subirFondo()">Subir Fondo</button>
+            <button class="btn-danger" onclick="quitarFondo()">Restablecer Fondo</button>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-secondary" style="width: 100%; margin-top: 10px;" onclick="cerrarModalAdmin()">Cerrar Panel</button>
+    </div>
+  </div>
+
+  <div id="toastContainer"></div>
+
+  <script>
+    // -------------------------------------------------------------
+    // CONFIGURACIÓN DE FIREBASE (Reemplazar con tus credenciales)
+    // -------------------------------------------------------------
+    const firebaseConfig = {
+      apiKey: "TU_API_KEY",
+      authDomain: "TU_PROYECTO.firebaseapp.com",
+      databaseURL: "https://TU_PROYECTO-default-rtdb.firebaseio.com",
+      projectId: "TU_PROYECTO",
+      storageBucket: "TU_PROYECTO.appspot.com",
+      messagingSenderId: "NUMERO_ID",
+      appId: "TU_APP_ID"
+    };
+
+    // Inicializar Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // Variables globales
+    let mapMaquinarias = {};
+    let listaAvisosGlobal = [];
+    let correlativoAvisoActual = 1;
+
+    window.onload = function() {
+      actualizarFechaAuto();
+      cargarFondoGuardado();
+      escucharMaquinarias();
+      escucharAvisos();
+      verificarSesionGuardada();
+    };
+
+    function showToast(msj, tipo = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = `toast ${tipo}`;
+      toast.innerText = msj;
+      container.appendChild(toast);
+      setTimeout(() => toast.classList.add('show'), 10);
+      setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    function actualizarFechaAuto() {
+      const hoy = new Date();
+      document.getElementById('txtFecha').value = hoy.toLocaleString('es-GT', { dateStyle: 'short', timeStyle: 'short' });
+    }
+
+    // -------------------------------------------------------------
+    // BASE DE DATOS: MAQUINARIAS
+    // -------------------------------------------------------------
+    function escucharMaquinarias() {
+      db.ref('maquinarias').on('value', snapshot => {
+        mapMaquinarias = snapshot.val() || {};
+        renderSelectMaquinarias();
+        renderTablaMaquinarias();
+      });
+    }
+
+    function renderSelectMaquinarias() {
+      const select = document.getElementById('selMaquina');
+      select.innerHTML = '<option value="">-- Seleccionar Máquina --</option>';
+      Object.keys(mapMaquinarias).forEach(id => {
+        const opt = document.createElement('option');
+        opt.value = id;
+        opt.innerText = id;
+        select.appendChild(opt);
+      });
+    }
+
+    function alSeleccionarMaquina() {
+      const id = document.getElementById('selMaquina').value;
+      if (id && mapMaquinarias[id]) {
+        document.getElementById('txtNombreOp').value = mapMaquinarias[id].nombreOp || '';
+        document.getElementById('txtCodigoOp').value = mapMaquinarias[id].codigoOp || '';
+      } else {
+        document.getElementById('txtNombreOp').value = '';
+        document.getElementById('txtCodigoOp').value = '';
+      }
+    }
+
+    function agregarMaquinaria() {
+      const id = document.getElementById('adminIdMaquina').value.trim();
+      const nombre = document.getElementById('adminNombreOp').value.trim();
+      const codigo = document.getElementById('adminCodigoOp').value.trim();
+
+      if (!id || !nombre || !codigo) {
+        showToast("Complete todos los campos de maquinaria", "error");
+        return;
+      }
+
+      db.ref('maquinarias/' + id).set({
+        nombreOp: nombre,
+        codigoOp: codigo
+      }).then(() => {
+        showToast("Maquinaria guardada correctamente", "success");
+        document.getElementById('adminIdMaquina').value = '';
+        document.getElementById('adminNombreOp').value = '';
+        document.getElementById('adminCodigoOp').value = '';
+      });
+    }
+
+    function borrarMaquinaria(id) {
+      db.ref('maquinarias/' + id).remove().then(() => {
+        showToast("Máquina eliminada", "info");
+      });
+    }
+
+    function renderTablaMaquinarias() {
+      const tbody = document.getElementById('tbMaquinarias');
+      tbody.innerHTML = '';
+      Object.keys(mapMaquinarias).forEach(id => {
+        const item = mapMaquinarias[id];
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><b>${id}</b></td>
+          <td>${item.nombreOp}</td>
+          <td>${item.codigoOp}</td>
+          <td><button class="btn-danger" onclick="borrarMaquinaria('${id}')">Eliminar</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // -------------------------------------------------------------
+    // BASE DE DATOS: AVISOS
+    // -------------------------------------------------------------
+    function escucharAvisos() {
+      db.ref('avisos').on('value', snapshot => {
+        const datos = snapshot.val() || {};
+        listaAvisosGlobal = Object.values(datos);
+        
+        // Calcular próximo correlativo
+        correlativoAvisoActual = listaAvisosGlobal.length + 1;
+        const codAvisoStr = "Av-" + String(correlativoAvisoActual).padStart(3, '0');
+        document.getElementById('lblNumeroAviso').innerText = codAvisoStr;
+
+        filtrarAvisosAdmin();
+      });
+    }
+
+    function guardarAviso() {
+      const idMaquina = document.getElementById('selMaquina').value;
+      if (!idMaquina) {
+        showToast("Seleccione una máquina primero", "error");
+        return;
+      }
+
+      const numAvisoStr = document.getElementById('lblNumeroAviso').innerText;
+      const nuevoAviso = {
+        numAviso: numAvisoStr,
+        fecha: document.getElementById('txtFecha').value,
+        frente: document.getElementById('selFrente').value,
+        idMaquina: idMaquina,
+        nombreOp: document.getElementById('txtNombreOp').value,
+        codigoOp: document.getElementById('txtCodigoOp').value,
+        departamento: document.getElementById('selDepartamento').value,
+        ubicacion: document.getElementById('txtUbicacion').value,
+        codigoFinca: document.getElementById('txtCodigoFinca').value,
+        telefono: document.getElementById('txtTelefono').value,
+        avisoResumen: document.getElementById('txtAvisoResumen').value,
+        detalleAviso: document.getElementById('txtDetalleAviso').value,
+        estado: document.getElementById('selEstado').value,
+        timestamp: Date.now()
+      };
+
+      db.ref('avisos/' + numAvisoStr).set(nuevoAviso).then(() => {
+        showToast("Aviso " + numAvisoStr + " guardado con éxito", "success");
+        limpiarFormularioAviso();
+        actualizarFechaAuto();
+      }).catch(err => {
+        showToast("Error al guardar: " + err.message, "error");
+      });
+    }
+
+    function limpiarFormularioAviso() {
+      document.getElementById('selMaquina').value = '';
+      document.getElementById('txtNombreOp').value = '';
+      document.getElementById('txtCodigoOp').value = '';
+      document.getElementById('txtUbicacion').value = '';
+      document.getElementById('txtCodigoFinca').value = '';
+      document.getElementById('txtTelefono').value = '';
+      document.getElementById('txtAvisoResumen').value = '';
+      document.getElementById('txtDetalleAviso').value = '';
+    }
+
+    function filtrarAvisosAdmin() {
+      const qMaq = document.getElementById('busqMaquina').value.toLowerCase().trim();
+      const qFec = document.getElementById('busqFecha').value;
+
+      const filtrados = listaAvisosGlobal.filter(a => {
+        const matchMaq = a.idMaquina.toLowerCase().includes(qMaq) || a.nombreOp.toLowerCase().includes(qMaq);
+        let matchFec = true;
+        if (qFec) {
+          matchFec = a.fecha.includes(qFec);
+        }
+        return matchMaq && matchFec;
+      });
+
+      document.getElementById('lblTotalAvisos').innerText = `Total avisos encontrados: ${filtrados.length}`;
+
+      const tbody = document.getElementById('tbAvisos');
+      tbody.innerHTML = '';
+      filtrados.reverse().forEach(a => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><b>${a.numAviso}</b></td>
+          <td>${a.idMaquina}</td>
+          <td>${a.nombreOp}</td>
+          <td>${a.fecha}</td>
+          <td>${a.estado}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // -------------------------------------------------------------
+    // AUTENTICACIÓN ADMIN Y PERSISTENCIA
+    // -------------------------------------------------------------
+    function abrirModalAdmin() {
+      if (localStorage.getItem('adminSessionActive') === 'true') {
+        document.getElementById('modalAdmin').classList.add('active');
+      } else {
+        document.getElementById('modalAuth').classList.add('active');
+      }
+    }
+
+    function cerrarModalAuth() {
+      document.getElementById('modalAuth').classList.remove('active');
+    }
+
+    function verificarPassword() {
+      const passInput = document.getElementById('txtPassAdmin').value;
+      
+      db.ref('config/passAdmin').get().then(snapshot => {
+        let passCorrecta = "perez"; // Contraseña predeterminada inicial
+        if (snapshot.exists()) {
+          passCorrecta = snapshot.val();
+        }
+
+        if (passInput === passCorrecta) {
+          if (document.getElementById('chkKeepSession').checked) {
+            localStorage.setItem('adminSessionActive', 'true');
+          }
+          cerrarModalAuth();
+          document.getElementById('txtPassAdmin').value = '';
+          document.getElementById('modalAdmin').classList.add('active');
+          showToast("Sesión Admin iniciada", "success");
+        } else {
+          showToast("Contraseña incorrecta", "error");
+        }
+      });
+    }
+
+    function verificarSesionGuardada() {
+      if (localStorage.getItem('adminSessionActive') === 'true') {
+        // Mantiene sesión en recarga
+      }
+    }
+
+    function cerrarSesionAdmin() {
+      localStorage.removeItem('adminSessionActive');
+      document.getElementById('modalAdmin').classList.remove('active');
+      showToast("Sesión de administración cerrada", "info");
+    }
+
+    function cerrarModalAdmin() {
+      document.getElementById('modalAdmin').classList.remove('active');
+    }
+
+    function cambiarPasswordAdmin() {
+      const nueva = document.getElementById('txtNuevaPass').value.trim();
+      if (!nueva) {
+        showToast("Ingrese una contraseña válida", "error");
+        return;
+      }
+      db.ref('config/passAdmin').set(nueva).then(() => {
+        showToast("Contraseña actualizada con éxito", "success");
+        document.getElementById('txtNuevaPass').value = '';
+      });
+    }
+
+    // -------------------------------------------------------------
+    // FONDO DE PANTALLA PERSONALIZADO
+    // -------------------------------------------------------------
+    function subirFondo() {
+      const fileInput = document.getElementById('fileBg');
+      if (!fileInput.files || !fileInput.files[0]) {
+        showToast("Seleccione una imagen primero", "error");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const bgData = e.target.result;
+        document.body.style.backgroundImage = `url('${bgData}')`;
+        localStorage.setItem('customBg', bgData);
+        showToast("Fondo guardado", "success");
+      };
+      reader.readAsDataURL(fileInput.files[0]);
+    }
+
+    function quitarFondo() {
+      document.body.style.backgroundImage = 'none';
+      localStorage.removeItem('customBg');
+      showToast("Fondo restablecido", "info");
+    }
+
+    function cargarFondoGuardado() {
+      const bg = localStorage.getItem('customBg');
+      if (bg) {
+        document.body.style.backgroundImage = `url('${bg}')`;
+      }
+    }
+  </script>
+</body>
+</html>
